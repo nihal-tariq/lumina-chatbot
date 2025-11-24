@@ -1,0 +1,17 @@
+langchain
+langchain-core
+langchain-text-splitters
+langgraph
+langgraph-checkpoint
+langgraph-checkpoint-sqlite
+langgraph-prebuilt
+langgraph-sdk
+python-dateutil
+python-dotenv
+SQLAlchemy
+sqlite-vec
+streamlit
+numpy
+psycopg_pool
+langgraph-checkpoint-postgres
+ddgs
