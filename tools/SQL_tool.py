@@ -1,52 +1,81 @@
 import os
 from langchain_core.tools import tool
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from langchain_groq import ChatGroq
+from langchain_community.utilities import SQLDatabase
+from langchain_community.agent_toolkits import SQLDatabaseToolkit
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
 
-# 1. DATABASE SETUP
-# Replace this with your actual connection string
-# Format: postgresql://username:password@host:port/database_name
-DB_CONNECTION_STRING = "postgresql://neondb_owner:npg_ldWU2aIuHv9R@ep-green-unit-adoucn1n-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-# Create the engine and session factory
-engine = create_engine(DB_CONNECTION_STRING)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+DB_URI = "postgresql+psycopg://neondb_owner:npg_ldWU2aIuHv9R@ep-green-unit-adoucn1n-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+api_key = os.getenv("GROQ_API_KEY")
 
 
 @tool
-def get_university_summary(university_name: str) -> str:
+def lookup_university_info(university_name: str) -> str:
     """
-    Search the database for a specific university by name to retrieve its summary.
-
-    Use this tool whenever a user asks for details, history, or an overview of a
-    university. It returns the 'summary' text column which acts as the ground truth
-    context for answering the user's question.
-
-    Args:
-        university_name (str): The name of the university to search for (e.g., 'Harvard', 'MIT').
+    Use this tool to find detailed information about a university.
+    Input should be the name of the university (e.g., 'Harvard', 'National University of Sciences').
+    This tool queries the SQL database to find the summary, url, and timestamp.
     """
-    session = SessionLocal()
+
+    # --- A. Setup Internal SQL Agent ---
+
+    # 1. Connect to DB
+    db = SQLDatabase.from_uri(DB_URI)
+
+    # 2. Setup LLM for the SQL Agent (Gemini 2.5 Flash Lite)
+    llm = ChatGroq(
+        model="openai/gpt-oss-120b",
+        api_key=api_key,
+        temperature=0
+    )
+
+    # 3. Get Tools from Toolkit
+    toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+    tools = toolkit.get_tools()
+
+    # 4. Specialized System Prompt (Adapted from your snippet)
+    system_prompt = """
+You are an intelligent SQL agent whose ONLY job is to search a PostgreSQL table for university information.
+
+Schema:
+    university (
+        id SERIAL PRIMARY KEY,
+        uni_name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        time_stamp TIMESTAMPTZ DEFAULT NOW()
+    );
+
+Your task:
+1. Generate a PostgreSQL SELECT query to find the row where 'uni_name' matches the user's request.
+2. Use ILIKE with wildcards (e.g., '%Name%') to be robust against spelling differences.
+3. Retrieve 'summary' 
+4. Return the summary text as your final answer. 
+5. If no row is found, return the exact string: "No summary found in the database."
+
+
+
+Just return the summary text.
+
+
+"""
+
+    # 5. Create the ReAct Agent
+
+    agent_executor = create_agent(llm, tools, system_prompt=system_prompt)
+
+    # --- B. Execute the Search ---
+    query_message = f"Find the summary for the university named: '{university_name}'"
+
     try:
-        # We use ILIKE for case-insensitive matching
-        # We add wildcards (%) to handle cases where user says "Oxford" but DB has "University of Oxford"
-        search_term = f"%{university_name}%"
+        # Invoke the sub-agent
+        result = agent_executor.invoke({"messages": [HumanMessage(content=query_message)]})
 
-        query = text("""
-            SELECT uni_name, summary 
-            FROM university 
-            WHERE uni_name ILIKE :name 
-            LIMIT 1
-        """)
-
-        result = session.execute(query, {"name": search_term}).fetchone()
-
-        if result:
-            found_name, summary = result
-            return f"Context found for {found_name}: {summary}"
-        else:
-            return f"No summary found in the database for a university matching '{university_name}'."
+        # Extract the last message content
+        final_response = result["messages"][-1].content
+        return final_response
 
     except Exception as e:
-        return f"Database error occurred while fetching summary: {str(e)}"
-    finally:
-        session.close()
+        return f"Error occurred: {str(e)}"

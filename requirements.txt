@@ -15,3 +15,5 @@ numpy
 psycopg_pool
 langgraph-checkpoint-postgres
 ddgs
+langchain-groq
+
