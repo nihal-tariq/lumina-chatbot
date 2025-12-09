@@ -7,7 +7,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
 
 
-DB_URI = "postgresql+psycopg://neondb_owner:npg_ldWU2aIuHv9R@ep-green-unit-adoucn1n-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DB_URI = os.environ.get('DATABASE_URL')
 api_key = os.getenv("GROQ_API_KEY")
 
 
