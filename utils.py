@@ -1,4 +1,5 @@
 import uuid
+import os
 import streamlit as st
 from backend import chatbot
 
@@ -24,3 +25,4 @@ def load_conversation(thread_id):
     state = chatbot.get_state(config={'configurable': {'thread_id': thread_id}})
     # Check if messages key exists in state values, return empty list if not
     return state.values.get('messages', [])
+
