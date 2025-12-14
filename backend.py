@@ -2,6 +2,8 @@ import os
 from typing import TypedDict, Annotated
 from dotenv import load_dotenv
 from psycopg_pool import ConnectionPool
+import traceback
+import json  # Imported for pretty printing arguments if needed
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage
@@ -27,7 +29,7 @@ connection_kwargs = {
 api_key = os.getenv("GROQ_API_KEY")
 
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
+    model="openai/gpt-oss-120b",
     api_key=api_key,
     temperature=0.5
 )
@@ -53,8 +55,23 @@ def chat_node(state: ChatState):
 
     try:
         response = llm_with_tools.invoke(prompt)
+
+        # --- LOGGING START ---
+        # Check if the model wants to call any tools
+        if hasattr(response, 'tool_calls') and response.tool_calls:
+            print("\n" + "=" * 40)
+            print("🛑 DETECTED TOOL CALL REQUEST")
+            for tc in response.tool_calls:
+                tool_name = tc.get('name')
+                tool_args = tc.get('args')
+                print(f"-> Tool: {tool_name}")
+                print(f"-> Args: {json.dumps(tool_args, indent=2)}")
+            print("=" * 40 + "\n")
+        # --- LOGGING END ---
+
     except Exception as e:
         print(f"LLM Invocation Error: {e}")
+        traceback.print_exc()
         response = AIMessage(
             content="I'm having trouble connecting to my search tools right now. Could you rephrase that?"
         )

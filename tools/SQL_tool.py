@@ -17,10 +17,9 @@ api_key = os.getenv("GROQ_API_KEY")
 
 
 class UniversityInput(BaseModel):
-    university_name: str = Field(description="The full name of the university to search for (e.g. 'Harvard').")
+    university_name: str = Field(description="The name of the university")
 
 
-# --- 2. ATTACH THE SCHEMA TO THE TOOL ---
 @tool("lookup_university_info", args_schema=UniversityInput)
 def lookup_university_info(university_name: str) -> str:
     """
@@ -28,14 +27,8 @@ def lookup_university_info(university_name: str) -> str:
     This tool queries the SQL database to find the summary, url, and timestamp.
     """
 
-    # --- LOGIC REMAINS UNCHANGED BELOW ---
-
-    # --- A. Setup Internal SQL Agent ---
-
-    # 1. Connect to DB
     db = SQLDatabase.from_uri(DB_URI)
 
-    # 2. Setup LLM for the SQL Agent
     llm = ChatGroq(
         model="openai/gpt-oss-120b",
         api_key=api_key,
